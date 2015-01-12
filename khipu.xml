@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<install version="1.5" type="plugin" group="vmpayment" >
+<extension version="1.5" type="plugin" group="vmpayment" >
 <name>Khipu</name>
 <creationDate>December 2012</creationDate>
 <author>Khipu</author>
@@ -14,6 +14,40 @@
   <filename plugin="khipu">khipu.php</filename>
   <filename plugin="khipu">khipu.pem</filename>
 </files>
+
+	<vmconfig>
+		<fields name="params">
+			<fieldset name="basic">
+				<field type="text" name="receiver_id"  size="50" label="ID de cobrador" description="ID de cobrador indicado en el perfil de khipu" />
+				<field type="text" name="secret"  size="50" label="Llave secreta" description="Llave secreta indicada en el perfil de khipu" />
+
+				<field name="country_id" type="list" default="4" label="Pais">
+					<option value="1">Chile</option>
+				</field>
+				<field name="dm_currency_select" type="list" default="mxn" label="Moneda">
+					<option value="clp">(CLP) Chile Pesos</option>
+				</field>
+				<field type="spacer" default="" level="level1" />
+
+				<field name="min_amount" type="text"  label="Monto mínimo" />
+				<field name="max_amount" type="text"  label="Monto máximo" />
+
+				<field type="spacer" default="" level="level1" />
+
+				<field name="status_pending" type="vmorderstate" scope="com_virtuemart" default="P" label="Estado pendiente"/>
+				<field name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Estado exitoso" />
+				<field name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="X" label="Estado fallido" />
+
+				<field type="spacer" default="" level="level1" />
+				<field name="debug" type="radio" default="0" label="Modo debug" >
+					<option value="0">COM_VIRTUEMART_NO</option>
+					<option value="1">COM_VIRTUEMART_YES</option>
+				</field>
+			</fieldset>
+		</fields>
+	</vmconfig>
+
+
 <params addpath="/administrator/components/com_virtuemart/elements" />
 <params>
    <param type="vmjpluginwarning" />
@@ -22,35 +56,11 @@
            directory="/images/stories/virtuemart/payment"
            default="default" hide_default="1" hide_none="1"
            stripext="0"  exclude="^_" />
-   <param type="text" name="receiver_id"  size="50" label="ID de cobrador"
-          description="ID de cobrador indicado en el perfil de khipu" />
-   <param type="text" name="secret"  size="50" label="Llave sereta"
-          description="Llave secreta indicada en el perfil de khipu" />
-    
-   <param name="country_id" type="list" default="4" label="Pais">
-      <option value="1">Chile</option>
-   </param>
 
    <param name="dm_currency_select" type="list" default="mxn" label="Moneda">
       <option value="clp">(CLP) Chile Pesos</option>
    </param>
 
    <param type="spacer" default="" level="level1" />
-   <param type="spacer" default="" level="level1" />
-
-   <param name="min_amount" type="text"  label="Monto mínimo" />
-   <param name="max_amount" type="text"  label="Monto máximo" />
-
-   <param type="spacer" default="" level="level1" />
-
-   <param name="status_pending" type="vmorderstate" scope="com_virtuemart" default="P" label="Estado pendiente"/>
-   <param name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Estado exitoso" />
-   <param name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="X" label="Estado fallido" />
-
-   <param type="spacer" default="" level="level1" />
-   <param name="debug" type="radio" default="0" label="Modo debug" >
-      <option value="0">COM_VIRTUEMART_NO</option>
-      <option value="1">COM_VIRTUEMART_YES</option>
-   </param>
 </params>
-</install>
+</extension>

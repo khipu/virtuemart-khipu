@@ -16,7 +16,7 @@ defined('_JEXEC') or die('Restricted access');
  * http://virtuemart.org
  */
 if (!class_exists('vmPSPlugin')) {
-    require (JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
+    require(JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
 }
 
 class plgVmPaymentKhipu extends vmPSPlugin {
@@ -26,39 +26,23 @@ class plgVmPaymentKhipu extends vmPSPlugin {
     function __construct(&$subject, $config) {
         parent::__construct($subject, $config);
 
-        $this->_loggable = true;
+        $this->_loggable = TRUE;
         $this->tableFields = array_keys($this->getTableSQLFields());
         $this->_tablepkey = 'id';
         $this->_tableId = 'id';
-        $varsToPush = array(
-            'receiver_id' => array('', 'int'),
-            'secret' => array('', 'char'),
-            'subject' => array('', 'char'),
-            'body' => array('', 'char'),
-            'amount' => array('', 'int'),
-            'return_url' => array('', 'char'),
-            'cancel_url' => array('', 'char'),
-            'picture_url' => array('', 'char'),
-            'transaction_id' => array('', 'char'),
-            'payer_email' => array('', 'char'),
-            'custom' => array('', 'char'),
-            'hash' => array('', 'char'),
-            'min_amount' => array('', 'int'),
-            'max_amount' => array('', 'int'),
-            'country_id' => array(1, 'int'),
-            'dm_currency_select' => array('', 'char'),
-            'debug' => array(0, 'int'),
-            'status_pending' => array('', 'char'),
-            'status_success' => array('', 'char'),
-            'status_canceled' => array('', 'char'),
-            'cost_per_transaction' => array('', 'int'),
-            'cost_percent_total' => array('', 'int'),
-            'payment_logos' => array('', 'char')
-        );
-
+        $varsToPush = $this->getVarsToPush();
         $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
 
-        self::$_this = $this;
+        $this->setCryptedFields(array('key'));
+
+    }
+
+    function plgVmDeclarePluginParamsPaymentVM3(&$data) {
+        return $this->declarePluginParams('payment', $data);
+    }
+
+    function plgVmGetTablePluginParams($psType, $name, $id, &$xParams, &$varsToPush) {
+        return $this->getTablePluginParams($psType, $name, $id, $xParams, $varsToPush);
     }
 
     public function getVmPluginCreateTableSQL() {
@@ -93,7 +77,6 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $this->convert($method);
         $amount = $cart_prices['salesPrice'];
         $amount_cond = ($amount >= $method->min_amount && $amount <= $method->max_amount || ($amount >= $method->min_amount && empty($method->max_amount)));
-
         return $amount_cond;
     }
 
@@ -103,10 +86,10 @@ class plgVmPaymentKhipu extends vmPSPlugin {
     }
 
     function plgVmConfirmedOrder($cart, $order) {
-
         if (!($method = $this->getVmPluginMethod($order['details']['BT']->virtuemart_paymentmethod_id))) {
             return null; // Another method was selected, do nothing
         }
+
         if (!$this->selectedThisElement($method->payment_element)) {
             return false;
         }
@@ -116,7 +99,7 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $return_context = $session->getId();
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- order number: ' . $order['details']['BT']->order_number, 'message');
 
-        $method->url = "https://khipu.com/api/1.1/createPaymentPage";
+        $method->url = "https://khipu.com/api/1.3/createPaymentPage";
 
         $vendorModel = VmModel::getModel('vendor');
         $vendorName = $vendorModel->getVendorName($method->virtuemart_vendor_id);
@@ -128,33 +111,37 @@ class plgVmPaymentKhipu extends vmPSPlugin {
             'amount' => sprintf("%.0f", $order['details']['BT']->order_total),
             'payer_email' => $order['details']['BT']->email,
             'transaction_id' => $order['details']['BT']->virtuemart_order_id,
+            'notify_url' =>
+                JROUTE::_(JURI::root() .
+                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id ),
             'return_url' =>
                 JROUTE::_(JURI::root() .
-                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
-                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
+                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
+                    $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                    '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
             'cancel_url' =>
                 JROUTE::_(JURI::root() .
-                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
-                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
-          );
+                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
+                    $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                    '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
+        );
 
         $cvars = "receiver_id=" . $params['receiver_id'] .
             "&subject=" . $params['subject'] .
             "&body=" .
             "&amount=" . $params['amount'] .
             "&payer_email=" . $params['payer_email'] .
+            "&bank_id=" .
+            "&expires_date=" .
             "&transaction_id=" . $params['transaction_id'] .
             "&custom=" .
-            "&notify_url=" .
+            "&notify_url=" . $params['notify_url'] .
             "&return_url=" . $params['return_url'] .
             "&cancel_url=" . $params['cancel_url'] .
-            "&picture_url=" .
-            "&secret=" . $method->secret;
+            "&picture_url=";
 
-        $params['hash'] = sha1($cvars);
 
+        $params['hash'] = hash_hmac('sha256', $cvars, $method->secret);
         // Set the language code
         $lang = JFactory::getLanguage();
         $lang->load('plg_vmpayment_' . $this->_name, JPATH_ADMINISTRATOR);
@@ -192,14 +179,13 @@ class plgVmPaymentKhipu extends vmPSPlugin {
   Redireccionando a khipu.com...
 EOD;
 
-        $form .= '<form action="' . $method->url . '" method="POST" name="vm_' . $this->_name . '_form" >'."\n";
+        $form .= '<form action="' . $method->url . '" method="POST" name="vm_' . $this->_name . '_form" >' . "\n";
         foreach ($params as $k => $v) {
-            $form .= '<input type="hidden" name="'.$k.'" value="'.$v.'" />'."\n";
+            $form .= '<input type="hidden" name="' . $k . '" value="' . $v . '" />' . "\n";
         }
         $form .= '<script type="text/javascript">document.forms[0].submit();</script>';
-        $form .= '</form>'."\n";
-        $form .= '</body></html>'."\n";
-
+        $form .= '</form>' . "\n";
+        $form .= '</body></html>' . "\n";
         return $form;
     }
 
@@ -220,12 +206,11 @@ EOD;
         $this->logInfo('plgVmOnPaymentResponseReceived -- user returned back from ' . $this->_name, 'message');
 
 
-
         $resp = JRequest::get('request');
 
         // Retrieve order info from database
         if (!class_exists('VirtueMartModelOrders')) {
-            require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
         }
 
         $virtuemart_order_id = $resp['transaction_id'];
@@ -259,7 +244,7 @@ EOD;
     function plgVmOnUserPaymentCancel() {
 
         if (!class_exists('VirtueMartModelOrders')) {
-            require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
         }
         $order_number = JRequest::getString('on');
         if (!$order_number) {
@@ -333,7 +318,7 @@ EOD;
         if ($notification_valid) {
             // Retrieve order info from database
             if (!class_exists('VirtueMartModelOrders')) {
-                require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+                require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
             }
 
             $order = VirtueMartModelOrders::getOrder($transaction_id);
@@ -349,7 +334,7 @@ EOD;
             }
 
             // save order data
-            $modelOrder = VmModel::getModel ('orders');
+            $modelOrder = VmModel::getModel('orders');
             $order['order_status'] = "C";
             $order['virtuemart_order_id'] = $transaction_id;
             $order['customer_notified'] = 1;
@@ -366,7 +351,6 @@ EOD;
 
         die();
     }
-
 
     function _getHtmlPaymentResponse($msg, $is_success = true, $order_id = null, $amount = null) {
         if (!$is_success) {
@@ -421,7 +405,7 @@ EOD;
 
     function managePaymentResponse($virtuemart_order_id, $resp, $new_status, $return_context = null) {
         if (!class_exists('VirtueMartModelOrders')) {
-            require (JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
         }
         // save order data
         $modelOrder = new VirtueMartModelOrders();
@@ -429,13 +413,17 @@ EOD;
         $order['virtuemart_order_id'] = $virtuemart_order_id;
         $order['customer_notified'] = 1;
         $date = JFactory::getDate();
-        $order['comments'] = JText::sprintf('Notification from khipu', $date->toFormat('%Y-%m-%d %H:%M:%S'));
+        if (method_exists($date, 'toFormat')) {
+            $order['comments'] = JText::sprintf('Notification from khipu', $date->toFormat('%Y-%m-%d %H:%M:%S'));
+        } else {
+            $order['comments'] = JText::sprintf('Notification from khipu', $date->format('%Y-%m-%d %H:%M:%S'));
+        }
         vmdebug($this->_name . ' - managePaymentResponse', $order);
 
         $modelOrder->updateStatusForOneOrder($virtuemart_order_id, $order, true);
 
         if (!class_exists('VirtueMartCart')) {
-            require (JPATH_VM_SITE . DS . 'helpers' . DS . 'cart.php');
+            require(JPATH_VM_SITE . DS . 'helpers' . DS . 'cart.php');
         }
 
         if ($resp['status_code'] == 'ok') {

@@ -7,7 +7,7 @@ Al instalarlo permite a los clientes pagar usando *Transferencia simplificada* (
 
 ## Requisitos
 
-Esta extensión es para la versión 2.5.8 de [Joomla](http://www.joomla.org/) y [Virtuemart](http://virtuemart.net/) 2.0.x. 
+Esta extensión es compatible con [Joomla](http://www.joomla.org/) 2.5.x/3.0.x y [Virtuemart](http://virtuemart.net/) 3.x. 
 
 ## Instalación
 
