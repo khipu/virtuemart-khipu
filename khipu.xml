@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<install version="1.5" type="plugin" group="vmpayment" >
+<name>Khipu</name>
+<creationDate>December 2012</creationDate>
+<author>Khipu</author>
+<authorUrl>http://www.khipu.com</authorUrl>
+<copyright>Copyright (C) 2013 Khipu SPA. All rights reserved.</copyright>
+<license>http://www.gnu.org/licenses/gpl-3.0.html GNU/GPL</license>
+<version>1.1.0</version>
+<description>
+   <![CDATA[Plugin de Virtuemart para pagos con <a href="http://khipu.com" target="_blank">Khipu</a>. ]]>
+</description>
+<files>
+  <filename plugin="khipu">khipu.php</filename>
+  <filename plugin="khipu">khipu.pem</filename>
+</files>
+<params addpath="/administrator/components/com_virtuemart/elements" />
+<params>
+   <param type="vmjpluginwarning" />
+   <param  name="payment_logos" type="vmfiles" label="Logos"
+           description="Logo para khipu"
+           directory="/images/stories/virtuemart/payment"
+           default="default" hide_default="1" hide_none="1"
+           stripext="0"  exclude="^_" />
+   <param type="text" name="receiver_id"  size="50" label="ID de cobrador"
+          description="ID de cobrador indicado en el perfil de khipu" />
+   <param type="text" name="secret"  size="50" label="Llave sereta"
+          description="Llave secreta indicada en el perfil de khipu" />
+    
+   <param name="country_id" type="list" default="4" label="Pais">
+      <option value="1">Chile</option>
+   </param>
+
+   <param name="dm_currency_select" type="list" default="mxn" label="Moneda">
+      <option value="clp">(CLP) Chile Pesos</option>
+   </param>
+
+   <param type="spacer" default="" level="level1" />
+   <param type="spacer" default="" level="level1" />
+
+   <param name="min_amount" type="text"  label="Monto mínimo" />
+   <param name="max_amount" type="text"  label="Monto máximo" />
+
+   <param type="spacer" default="" level="level1" />
+
+   <param name="status_pending" type="vmorderstate" scope="com_virtuemart" default="P" label="Estado pendiente"/>
+   <param name="status_success" type="vmorderstate" scope="com_virtuemart" default="C" label="Estado exitoso" />
+   <param name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="X" label="Estado fallido" />
+
+   <param type="spacer" default="" level="level1" />
+   <param name="debug" type="radio" default="0" label="Modo debug" >
+      <option value="0">COM_VIRTUEMART_NO</option>
+      <option value="1">COM_VIRTUEMART_YES</option>
+   </param>
+</params>
+</install>
