@@ -280,75 +280,102 @@ EOD;
         $resp = JRequest::get('request');
 
         $api_version = $resp['api_version'];
-        $receiver_id = $resp['receiver_id'];
-        $notification_id = $resp['notification_id'];
-        $subject = $resp['subject'];
-        $amount = $resp['amount'];
-        $currency = $resp['currency'];
-        $payer_email = $resp['payer_email'];
-        $transaction_id = $resp['transaction_id'];
-        $notification_signature = $resp['notification_signature'];
 
-        if (strcmp($method->receiver_id, $receiver_id) != 0) {
-            print "ERROR1";
-            http_response_code(400);
-            return null;
-        }
+	if ($api_version == '1.3') {
+		$notification_token = $resp['notification_token'];
+		
+		$concatenated = "receiver_id=$method->receiver_id&notification_token=$notification_token";
+		$hash = hash_hmac('sha256', $concatenated , $method->secret);
+		$url = 'https://khipu.com/api/1.3/getPaymentNotification';
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, 'https://khipu.com/api/1.3/getPaymentNotification');
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_POST, true);
 
-        $to_validate = 'api_version=' . $api_version .
-            '&receiver_id=' . $receiver_id .
-            '&notification_id=' . $notification_id .
-            '&subject=' . $subject .
-            '&amount=' . $amount .
-            '&currency=' . $currency .
-            '&transaction_id=' . $transaction_id .
-            '&payer_email=' . $payer_email .
-            '&custom=';
+		$data = array('receiver_id' => $method->receiver_id , 'notification_token' => $notification_token , 'hash' => $hash);
 
-        $filename = JPATH_PLUGINS . "/vmpayment/khipu/khipu.pem";
-        $fp = fopen($filename, "r");
-        $cert = fread($fp, filesize($filename));
-        fclose($fp);
-        $pubkey = openssl_get_publickey($cert);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+		$output = curl_exec($ch);
+		$info = curl_getinfo($ch);
+		curl_close($ch);
+	
+		$notification = json_decode($output);
 
-        $notification_valid = openssl_verify($to_validate, base64_decode($notification_signature), $pubkey);
+		if($notification->receiver_id != $method->receiver_id) {
+			print "ERROR";
+			http_response_code(400);
+			return null;
+		}
+		$transaction_id = $notification->transaction_id;
+		$amount = $notification->amount;
 
-        openssl_free_key($pubkey);
+	} else if ($api_version == '1.2') {
+		$receiver_id = $resp['receiver_id'];
+		$notification_id = $resp['notification_id'];
+		$subject = $resp['subject'];
+		$amount = $resp['amount'];
+		$currency = $resp['currency'];
+		$payer_email = $resp['payer_email'];
+		$transaction_id = $resp['transaction_id'];
+		$notification_signature = $resp['notification_signature'];
 
-        if ($notification_valid) {
-            // Retrieve order info from database
-            if (!class_exists('VirtueMartModelOrders')) {
-                require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-            }
+		if (strcmp($method->receiver_id, $receiver_id) != 0) {
+		    print "ERROR1";
+		    http_response_code(400);
+		    return null;
+		}
 
-            $order = VirtueMartModelOrders::getOrder($transaction_id);
+		$to_validate = 'api_version=' . $api_version .
+		    '&receiver_id=' . $receiver_id .
+		    '&notification_id=' . $notification_id .
+		    '&subject=' . $subject .
+		    '&amount=' . $amount .
+		    '&currency=' . $currency .
+		    '&transaction_id=' . $transaction_id .
+		    '&payer_email=' . $payer_email .
+		    '&custom=';
 
-            // Order not found
-            if (!$order) {
-                vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
-                $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
-                $html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
-                print "ERROR2";
-                http_response_code(400);
-                return null;
-            }
+		$filename = JPATH_PLUGINS . "/vmpayment/khipu/khipu.pem";
+		$fp = fopen($filename, "r");
+		$cert = fread($fp, filesize($filename));
+		fclose($fp);
+		$pubkey = openssl_get_publickey($cert);
 
-            // save order data
-            $modelOrder = VmModel::getModel('orders');
-            $order['order_status'] = "C";
-            $order['virtuemart_order_id'] = $transaction_id;
-            $order['customer_notified'] = 1;
-            $order['comments'] = "Confirmation from khipu";
-            vmdebug($this->_name . ' - PaymentNotification', $order);
+		$notification_valid = openssl_verify($to_validate, base64_decode($notification_signature), $pubkey);
 
-            $modelOrder->updateStatusForOneOrder($transaction_id, $order, true);
+		openssl_free_key($pubkey);
 
-            print "OK";
-        } else {
-            print "ERROR";
-            http_response_code(400);
-        }
+		if (!$notification_valid) {
+			print "ERROR";
+			http_response_code(400);
+			die();
+		}
+	}
+	// Retrieve order info from database
+	if (!class_exists('VirtueMartModelOrders')) {
+		require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+	}
+	$order = VirtueMartModelOrders::getOrder($transaction_id);
 
+	// Order not found
+	if (!$order) {
+		vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
+		$this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
+		$html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
+		print "ERROR2";
+		http_response_code(400);
+		return null;
+	}
+	// save order data
+	$modelOrder = VmModel::getModel('orders');
+	$order['order_status'] = "C";
+	$order['virtuemart_order_id'] = $transaction_id;
+	$order['customer_notified'] = 1;
+	$order['comments'] = "Confirmation from khipu";
+	vmdebug($this->_name . ' - PaymentNotification', $order);
+
+	$modelOrder->updateStatusForOneOrder($transaction_id, $order, true);
+	print "OK";
         die();
     }
 
