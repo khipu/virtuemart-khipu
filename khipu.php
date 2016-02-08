@@ -105,7 +105,7 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $configuration = new Khipu\Configuration();
         $configuration->setSecret($method->secret);
         $configuration->setReceiverId($method->receiver_id);
-        $configuration->setPlatform('virtuemart-khipu', '2.0.0');
+        $configuration->setPlatform('virtuemart-khipu', '3.1.0');
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
@@ -292,7 +292,7 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $configuration = new Khipu\Configuration();
         $configuration->setSecret($method->secret);
         $configuration->setReceiverId($method->receiver_id);
-        $configuration->setPlatform('virtuemart-khipu', '2.0.0');
+        $configuration->setPlatform('virtuemart-khipu', '3.1.0');
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
