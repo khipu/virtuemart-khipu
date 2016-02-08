@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <extension version="1.5" type="plugin" group="vmpayment" >
 <name>Khipu</name>
-<creationDate>December 2012</creationDate>
+<creationDate>February 2016</creationDate>
 <author>Khipu</author>
 <authorUrl>http://www.khipu.com</authorUrl>
-<copyright>Copyright (C) 2013 Khipu SPA. All rights reserved.</copyright>
+<copyright>Copyright (C) 2016 Khipu SPA. All rights reserved.</copyright>
 <license>http://www.gnu.org/licenses/gpl-3.0.html GNU/GPL</license>
-<version>1.1.0</version>
+<version>2.0.0</version>
 <description>
    <![CDATA[Plugin de Virtuemart para pagos con <a href="http://khipu.com" target="_blank">Khipu</a>. ]]>
 </description>
 <files>
   <filename plugin="khipu">khipu.php</filename>
-  <filename plugin="khipu">khipu.pem</filename>
+  <folder>vendor</folder>
 </files>
 
 	<vmconfig>
@@ -21,13 +21,6 @@
 				<field type="text" name="receiver_id"  size="50" label="ID de cobrador" description="ID de cobrador indicado en el perfil de khipu" />
 				<field type="text" name="secret"  size="50" label="Llave secreta" description="Llave secreta indicada en el perfil de khipu" />
 
-				<field name="country_id" type="list" default="4" label="Pais">
-					<option value="1">Chile</option>
-				</field>
-				<field name="dm_currency_select" type="list" default="mxn" label="Moneda">
-					<option value="clp">(CLP) Chile Pesos</option>
-				</field>
-				<field type="spacer" default="" level="level1" />
 
 				<field name="min_amount" type="text"  label="Monto mínimo" />
 				<field name="max_amount" type="text"  label="Monto máximo" />
@@ -57,10 +50,5 @@
            default="default" hide_default="1" hide_none="1"
            stripext="0"  exclude="^_" />
 
-   <param name="dm_currency_select" type="list" default="mxn" label="Moneda">
-      <option value="clp">(CLP) Chile Pesos</option>
-   </param>
-
-   <param type="spacer" default="" level="level1" />
 </params>
 </extension>

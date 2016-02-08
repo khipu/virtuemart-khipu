@@ -1,5 +1,6 @@
 <?php
 defined('_JEXEC') or die('Restricted access');
+require __DIR__ . '/vendor/autoload.php';
 
 /**
  *
@@ -99,55 +100,73 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $return_context = $session->getId();
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- order number: ' . $order['details']['BT']->order_number, 'message');
 
-        $method->url = "https://khipu.com/api/1.3/createPaymentPage";
+
+
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret($method->secret);
+        $configuration->setReceiverId($method->receiver_id);
+        $configuration->setPlatform('virtuemart-khipu', '2.0.0');
+
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
 
         $vendorModel = VmModel::getModel('vendor');
         $vendorName = $vendorModel->getVendorName($method->virtuemart_vendor_id);
 
-        // set config parameters
-        $params = array(
-            'receiver_id' => $method->receiver_id,
-            'subject' => JText::sprintf($vendorName . ' - Orden: %s', $order['details']['BT']->order_number),
-            'amount' => sprintf("%.0f", $order['details']['BT']->order_total),
-            'payer_email' => $order['details']['BT']->email,
-            'transaction_id' => $order['details']['BT']->virtuemart_order_id,
-            'notify_url' =>
-                JROUTE::_(JURI::root() .
-                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id ),
-            'return_url' =>
-                JROUTE::_(JURI::root() .
-                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
-                    $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                    '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
-            'cancel_url' =>
-                JROUTE::_(JURI::root() .
-                    'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
-                    $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                    '&transaction_id=' . $order['details']['BT']->virtuemart_order_id),
-        );
+        if (!class_exists('CurrencyDisplay')) require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
+        $currencyDisplay = CurrencyDisplay::getInstance($order['details']['BT']->order_currency);
 
-        $cvars = "receiver_id=" . $params['receiver_id'] .
-            "&subject=" . $params['subject'] .
-            "&body=" .
-            "&amount=" . $params['amount'] .
-            "&payer_email=" . $params['payer_email'] .
-            "&bank_id=" .
-            "&expires_date=" .
-            "&transaction_id=" . $params['transaction_id'] .
-            "&custom=" .
-            "&notify_url=" . $params['notify_url'] .
-            "&return_url=" . $params['return_url'] .
-            "&cancel_url=" . $params['cancel_url'] .
-            "&picture_url=";
+        try {
+            $createPaymentResponse = $payments->paymentsPost(
+                JText::sprintf($vendorName . ' - Orden: %s', $order['details']['BT']->order_number)
+                , $currencyDisplay->_vendorCurrency_code_3
+                , $currencyDisplay->roundForDisplay($order['details']['BT']->order_total)
+                , $order['details']['BT']->virtuemart_order_id
+                , null
+                , $_POST['body']
+                , null
+                , JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
+                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
+                , JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
+                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
+                , null
+                , JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id )
+                , $_POST['api_version']
+                , null
+                , null
+                , null
+                , $order['details']['BT']->email
+                , null
+                , null
+                , null
+                , null
+            );
+        } catch (\Khipu\ApiException $e) {
+            echo "<html><head><meta charset=\"UTF-8\"></head><body>";
+            echo "<h1>Error " . $e->getCode() . ": " . $e->getMessage() . "</h1>";
+            $error = $e->getResponseObject();
+            if (method_exists($error, "getErrors")) {
+                echo "<ul>";
+                foreach ($error->getErrors() as $errorItem) {
+                    echo "<li><strong>" . $errorItem->getField() . "</strong>: " . $errorItem->getMessage() . "</li>";
+                }
+                echo "</ul>";
+                return;
+            }
+            echo "</body></html>";
+            return;
+        }
 
 
-        $params['hash'] = hash_hmac('sha256', $cvars, $method->secret);
         // Set the language code
         $lang = JFactory::getLanguage();
         $lang->load('plg_vmpayment_' . $this->_name, JPATH_ADMINISTRATOR);
 
-        $tag = substr($lang->get('tag'), 0, 2);
-        //$language = in_array($tag, $api->getSupportedLanguages()) ? $tag : ($method->language ? $method->language : 'en');
 
         // Prepare data that should be stored in the database
         $dbValues['order_number'] = $order['details']['BT']->order_number;
@@ -159,35 +178,18 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- payment data saved to table ' . $this->_tablename, 'message');
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- user redirected to ' . $this->_name, 'message');
 
-        // echo the redirect form
-        echo $this->getConfirmFormHtml($method, $params, $order);
+
 
         $cart->_confirmDone = false;
         $cart->_dataValidated = false;
         $cart->setCartIntoSession();
+
+        header('Location: ' . $createPaymentResponse->getPaymentUrl());
+
+
         die(); // not save order, not send mail, do redirect
     }
 
-    function getConfirmFormHtml($method, $params, $order) {
-
-        $form = <<<EOD
-<html>
-<head>
-  <title>Redirection</title>
-  </head>
-  <body>
-  Redireccionando a khipu.com...
-EOD;
-
-        $form .= '<form action="' . $method->url . '" method="POST" name="vm_' . $this->_name . '_form" >' . "\n";
-        foreach ($params as $k => $v) {
-            $form .= '<input type="hidden" name="' . $k . '" value="' . $v . '" />' . "\n";
-        }
-        $form .= '<script type="text/javascript">document.forms[0].submit();</script>';
-        $form .= '</form>' . "\n";
-        $form .= '</body></html>' . "\n";
-        return $form;
-    }
 
     function plgVmOnPaymentResponseReceived(&$html) {
         // the payment itself should send the parameter needed.
@@ -281,101 +283,72 @@ EOD;
 
         $api_version = $resp['api_version'];
 
-	if ($api_version == '1.3') {
-		$notification_token = $resp['notification_token'];
-		
-		$concatenated = "receiver_id=$method->receiver_id&notification_token=$notification_token";
-		$hash = hash_hmac('sha256', $concatenated , $method->secret);
-		$url = 'https://khipu.com/api/1.3/getPaymentNotification';
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, 'https://khipu.com/api/1.3/getPaymentNotification');
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_POST, true);
+        if ($api_version != '1.3') {
+            print 'rejected - Wrong api version';
+            http_response_code(400);
+            return null;
+        }
 
-		$data = array('receiver_id' => $method->receiver_id , 'notification_token' => $notification_token , 'hash' => $hash);
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret($method->secret);
+        $configuration->setReceiverId($method->receiver_id);
+        $configuration->setPlatform('virtuemart-khipu', '2.0.0');
 
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-		$output = curl_exec($ch);
-		$info = curl_getinfo($ch);
-		curl_close($ch);
-	
-		$notification = json_decode($output);
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
 
-		if($notification->receiver_id != $method->receiver_id) {
-			print "ERROR";
-			http_response_code(400);
-			return null;
-		}
-		$transaction_id = $notification->transaction_id;
-		$amount = $notification->amount;
 
-	} else if ($api_version == '1.2') {
-		$receiver_id = $resp['receiver_id'];
-		$notification_id = $resp['notification_id'];
-		$subject = $resp['subject'];
-		$amount = $resp['amount'];
-		$currency = $resp['currency'];
-		$payer_email = $resp['payer_email'];
-		$transaction_id = $resp['transaction_id'];
-		$notification_signature = $resp['notification_signature'];
+        $paymentsResponse =  $payments->paymentsGet($resp['notification_token']);
+        if ($paymentsResponse->getReceiverId() != $method->receiver_id) {
+            print 'rejected - Wrong receiver';
+            http_response_code(400);
+            return null;
+        }
 
-		if (strcmp($method->receiver_id, $receiver_id) != 0) {
-		    print "ERROR1";
-		    http_response_code(400);
-		    return null;
-		}
 
-		$to_validate = 'api_version=' . $api_version .
-		    '&receiver_id=' . $receiver_id .
-		    '&notification_id=' . $notification_id .
-		    '&subject=' . $subject .
-		    '&amount=' . $amount .
-		    '&currency=' . $currency .
-		    '&transaction_id=' . $transaction_id .
-		    '&payer_email=' . $payer_email .
-		    '&custom=';
 
-		$filename = JPATH_PLUGINS . "/vmpayment/khipu/khipu.pem";
-		$fp = fopen($filename, "r");
-		$cert = fread($fp, filesize($filename));
-		fclose($fp);
-		$pubkey = openssl_get_publickey($cert);
+	    // Retrieve order info from database
+        if (!class_exists('VirtueMartModelOrders')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+        }
+        $order = VirtueMartModelOrders::getOrder($paymentsResponse->getTransactionId());
 
-		$notification_valid = openssl_verify($to_validate, base64_decode($notification_signature), $pubkey);
 
-		openssl_free_key($pubkey);
+        if (!$order) {
+            vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
+            $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
+            $html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
+            print "ERROR2";
+            http_response_code(400);
+            return null;
+        }
 
-		if (!$notification_valid) {
-			print "ERROR";
-			http_response_code(400);
-			die();
-		}
-	}
-	// Retrieve order info from database
-	if (!class_exists('VirtueMartModelOrders')) {
-		require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-	}
-	$order = VirtueMartModelOrders::getOrder($transaction_id);
+        if (!class_exists('CurrencyDisplay')) require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
+        $currencyDisplay = CurrencyDisplay::getInstance($order['details']['BT']->order_currency);
 
-	// Order not found
-	if (!$order) {
-		vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
-		$this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
-		$html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
-		print "ERROR2";
-		http_response_code(400);
-		return null;
-	}
-	// save order data
-	$modelOrder = VmModel::getModel('orders');
-	$order['order_status'] = "C";
-	$order['virtuemart_order_id'] = $transaction_id;
-	$order['customer_notified'] = 1;
-	$order['comments'] = "Confirmation from khipu";
-	vmdebug($this->_name . ' - PaymentNotification', $order);
 
-	$modelOrder->updateStatusForOneOrder($transaction_id, $order, true);
-	print "OK";
+        if($currencyDisplay->_vendorCurrency_code_3 != $paymentsResponse->getCurrency()) {
+            print 'rejected - Wrong currency';
+            http_response_code(400);
+            return null;
+        }
+
+        if($currencyDisplay->roundForDisplay($order['details']['BT']->order_total) != $paymentsResponse->getAmount()) {
+            print 'rejected - Wrong amount';
+            http_response_code(400);
+            return null;
+        }
+
+
+        $modelOrder = VmModel::getModel('orders');
+        $order['order_status'] = "C";
+        $order['virtuemart_order_id'] = $paymentsResponse->getTransactionId();
+        $order['customer_notified'] = 1;
+        $order['comments'] = "Confirmation from khipu";
+        vmdebug($this->_name . ' - PaymentNotification', $order);
+
+        $modelOrder->updateStatusForOneOrder($paymentsResponse->getTransactionId(), $order, true);
+        print "OK";
         die();
     }
 
