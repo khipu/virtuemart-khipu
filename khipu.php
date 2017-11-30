@@ -6,7 +6,7 @@ require __DIR__ . '/vendor/autoload.php';
  *
  * @package VirtueMart
  * @subpackage payment
- * @copyright Copyright (C) 2013 Khipu SpA - All rights reserved.
+ * @copyright Copyright (C) 2017 Khipu SpA - All rights reserved.
  * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL, see LICENSE.php
  * VirtueMart is free software. This version may have been modified pursuant
  * to the GNU General Public License, and as distributed it includes or
@@ -20,11 +20,13 @@ if (!class_exists('vmPSPlugin')) {
     require(JPATH_VM_PLUGINS . DS . 'vmpsplugin.php');
 }
 
-class plgVmPaymentKhipu extends vmPSPlugin {
+class plgVmPaymentKhipu extends vmPSPlugin
+{
 
     public static $_this = false;
 
-    function __construct(&$subject, $config) {
+    function __construct(&$subject, $config)
+    {
         parent::__construct($subject, $config);
 
         $this->_loggable = TRUE;
@@ -38,20 +40,10 @@ class plgVmPaymentKhipu extends vmPSPlugin {
 
     }
 
-    function plgVmDeclarePluginParamsPaymentVM3(&$data) {
-        return $this->declarePluginParams('payment', $data);
-    }
-
-    function plgVmGetTablePluginParams($psType, $name, $id, &$xParams, &$varsToPush) {
-        return $this->getTablePluginParams($psType, $name, $id, $xParams, $varsToPush);
-    }
-
-    public function getVmPluginCreateTableSQL() {
-        return $this->createTableSQL('Payment Khipu Table');
-    }
-
-    function getTableSQLFields() {
-        $SQLfields = array('id' => 'int(11) UNSIGNED NOT NULL AUTO_INCREMENT',
+    function getTableSQLFields()
+    {
+        $SQLfields = array(
+            'id' => 'int(11) UNSIGNED NOT NULL AUTO_INCREMENT',
             'virtuemart_order_id' => 'int(1) UNSIGNED',
             'order_number' => ' char(64)',
             'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
@@ -64,7 +56,23 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         return $SQLfields;
     }
 
-    function getCosts(VirtueMartCart $cart, $method, $cart_prices) {
+    function plgVmDeclarePluginParamsPaymentVM3(&$data)
+    {
+        return $this->declarePluginParams('payment', $data);
+    }
+
+    function plgVmGetTablePluginParams($psType, $name, $id, &$xParams, &$varsToPush)
+    {
+        return $this->getTablePluginParams($psType, $name, $id, $xParams, $varsToPush);
+    }
+
+    public function getVmPluginCreateTableSQL()
+    {
+        return $this->createTableSQL('Payment Khipu Table');
+    }
+
+    function getCosts(VirtueMartCart $cart, $method, $cart_prices)
+    {
         if (preg_match('/%$/', $method->cost_percent_total)) {
             $cost_percent_total = substr($method->cost_percent_total, 0, -1);
         } else {
@@ -74,19 +82,22 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         return ($method->cost_per_transaction + ($cart_prices['salesPrice'] * $cost_percent_total * 0.01));
     }
 
-    function checkConditions($cart, $method, $cart_prices) {
+    function checkConditions($cart, $method, $cart_prices)
+    {
         $this->convert($method);
         $amount = $cart_prices['salesPrice'];
         $amount_cond = ($amount >= $method->min_amount && $amount <= $method->max_amount || ($amount >= $method->min_amount && empty($method->max_amount)));
         return $amount_cond;
     }
 
-    function convert($method) {
+    function convert($method)
+    {
         $method->min_amount = (float)$method->min_amount;
         $method->max_amount = (float)$method->max_amount;
     }
 
-    function plgVmConfirmedOrder($cart, $order) {
+    function plgVmConfirmedOrder($cart, $order)
+    {
         if (!($method = $this->getVmPluginMethod($order['details']['BT']->virtuemart_paymentmethod_id))) {
             return null; // Another method was selected, do nothing
         }
@@ -100,12 +111,10 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $return_context = $session->getId();
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- order number: ' . $order['details']['BT']->order_number, 'message');
 
-
-
         $configuration = new Khipu\Configuration();
         $configuration->setSecret($method->secret);
         $configuration->setReceiverId($method->receiver_id);
-        $configuration->setPlatform('virtuemart-khipu', '3.1.0');
+        $configuration->setPlatform('virtuemart-khipu', '3.2.0');
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
@@ -113,38 +122,41 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $vendorModel = VmModel::getModel('vendor');
         $vendorName = $vendorModel->getVendorName($method->virtuemart_vendor_id);
 
-        if (!class_exists('CurrencyDisplay')) require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
+        if (!class_exists('CurrencyDisplay')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
+        }
         $currencyDisplay = CurrencyDisplay::getInstance($order['details']['BT']->order_currency);
+        $opts = array(
+            'transaction_id' => $order['details']['BT']->virtuemart_order_id
+        ,
+            'body' => $_POST['body']
+        ,
+            'return_url' => JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
+                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
+        ,
+            'cancel_url' => JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
+                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
+                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
+        ,
+            'notify_url' => JROUTE::_(JURI::root() .
+                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id)
+        ,
+            $_POST['api_version']
+        ,
+            'notify_api_version' => '1.3'
+        ,
+            'payer_email' => $order['details']['BT']->email
+        );
 
         try {
             $createPaymentResponse = $payments->paymentsPost(
                 JText::sprintf($vendorName . ' - Orden: %s', $order['details']['BT']->order_number)
                 , $currencyDisplay->_vendorCurrency_code_3
                 , $currencyDisplay->roundForDisplay($order['details']['BT']->order_total)
-                , $order['details']['BT']->virtuemart_order_id
-                , null
-                , $_POST['body']
-                , null
-                , JROUTE::_(JURI::root() .
-                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=ok&on=' .
-                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
-                , JROUTE::_(JURI::root() .
-                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&status_code=cancel&on=' .
-                $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id .
-                '&transaction_id=' . $order['details']['BT']->virtuemart_order_id)
-                , null
-                , JROUTE::_(JURI::root() .
-                'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id )
-                , $_POST['api_version']
-                , null
-                , null
-                , null
-                , $order['details']['BT']->email
-                , null
-                , null
-                , null
-                , null
+                , $opts
             );
         } catch (\Khipu\ApiException $e) {
             echo "<html><head><meta charset=\"UTF-8\"></head><body>";
@@ -162,11 +174,9 @@ class plgVmPaymentKhipu extends vmPSPlugin {
             return;
         }
 
-
         // Set the language code
         $lang = JFactory::getLanguage();
         $lang->load('plg_vmpayment_' . $this->_name, JPATH_ADMINISTRATOR);
-
 
         // Prepare data that should be stored in the database
         $dbValues['order_number'] = $order['details']['BT']->order_number;
@@ -178,20 +188,18 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- payment data saved to table ' . $this->_tablename, 'message');
         $this->logInfo('plgVmOnConfirmedOrderGetPaymentForm -- user redirected to ' . $this->_name, 'message');
 
-
-
         $cart->_confirmDone = false;
         $cart->_dataValidated = false;
         $cart->setCartIntoSession();
 
         header('Location: ' . $createPaymentResponse->getPaymentUrl());
 
-
         die(); // not save order, not send mail, do redirect
     }
 
 
-    function plgVmOnPaymentResponseReceived(&$html) {
+    function plgVmOnPaymentResponseReceived(&$html)
+    {
         // the payment itself should send the parameter needed.
         $virtuemart_paymentmethod_id = JRequest::getInt('pm', 0);
 
@@ -206,7 +214,6 @@ class plgVmPaymentKhipu extends vmPSPlugin {
 
         $this->_debug = true;
         $this->logInfo('plgVmOnPaymentResponseReceived -- user returned back from ' . $this->_name, 'message');
-
 
         $resp = JRequest::get('request');
 
@@ -243,116 +250,8 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         return null;
     }
 
-    function plgVmOnUserPaymentCancel() {
-
-        if (!class_exists('VirtueMartModelOrders')) {
-            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-        }
-        $order_number = JRequest::getString('on');
-        if (!$order_number) {
-            return false;
-        }
-        if (!$virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number)) {
-            return null;
-        }
-        if (!($paymentTable = $this->getDataByOrderId($virtuemart_order_id))) {
-            return null;
-        }
-
-        $session = JFactory::getSession();
-        $return_context = $session->getId();
-        $field = $this->_name . '_custom';
-        if (strcmp($paymentTable->$field, $return_context) === 0) {
-            $this->handlePaymentUserCancel($virtuemart_order_id);
-        }
-        return true;
-    }
-
-    function plgVmOnPaymentNotification() {
-
-        $virtuemart_paymentmethod_id = JRequest::getInt('pm', 0);
-
-        if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
-            return null; // Another method was selected, do nothing
-        }
-
-        $this->_debug = $method->debug; // enable debug
-        $this->logInfo('plgVmOnPaymentNotification -- notification from merchant', 'message');
-
-        $resp = JRequest::get('request');
-
-        $api_version = $resp['api_version'];
-
-        if ($api_version != '1.3') {
-            print 'rejected - Wrong api version';
-            http_response_code(400);
-            return null;
-        }
-
-        $configuration = new Khipu\Configuration();
-        $configuration->setSecret($method->secret);
-        $configuration->setReceiverId($method->receiver_id);
-        $configuration->setPlatform('virtuemart-khipu', '3.1.0');
-
-        $client = new Khipu\ApiClient($configuration);
-        $payments = new Khipu\Client\PaymentsApi($client);
-
-
-        $paymentsResponse =  $payments->paymentsGet($resp['notification_token']);
-        if ($paymentsResponse->getReceiverId() != $method->receiver_id) {
-            print 'rejected - Wrong receiver';
-            http_response_code(400);
-            return null;
-        }
-
-
-
-	    // Retrieve order info from database
-        if (!class_exists('VirtueMartModelOrders')) {
-            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
-        }
-        $order = VirtueMartModelOrders::getOrder($paymentsResponse->getTransactionId());
-
-
-        if (!$order) {
-            vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
-            $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
-            $html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
-            print "ERROR2";
-            http_response_code(400);
-            return null;
-        }
-
-        if (!class_exists('CurrencyDisplay')) require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
-        $currencyDisplay = CurrencyDisplay::getInstance($order['details']['BT']->order_currency);
-
-
-        if($currencyDisplay->_vendorCurrency_code_3 != $paymentsResponse->getCurrency()) {
-            print 'rejected - Wrong currency';
-            http_response_code(400);
-            return null;
-        }
-
-        if($currencyDisplay->roundForDisplay($order['details']['BT']->order_total) != $paymentsResponse->getAmount()) {
-            print 'rejected - Wrong amount';
-            http_response_code(400);
-            return null;
-        }
-
-
-        $modelOrder = VmModel::getModel('orders');
-        $order['order_status'] = "C";
-        $order['virtuemart_order_id'] = $paymentsResponse->getTransactionId();
-        $order['customer_notified'] = 1;
-        $order['comments'] = "Confirmation from khipu";
-        vmdebug($this->_name . ' - PaymentNotification', $order);
-
-        $modelOrder->updateStatusForOneOrder($paymentsResponse->getTransactionId(), $order, true);
-        print "OK";
-        die();
-    }
-
-    function _getHtmlPaymentResponse($msg, $is_success = true, $order_id = null, $amount = null) {
+    function _getHtmlPaymentResponse($msg, $is_success = true, $order_id = null, $amount = null)
+    {
         if (!$is_success) {
             return '<p style="text-align: center;">' . JText::_($msg) . '</p>';
         } else {
@@ -366,44 +265,8 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         }
     }
 
-    function savePaymentData($virtuemart_order_id, $resp) {
-        vmdebug($this->_name . 'response_raw', json_encode($resp));
-        $response[$this->_tablepkey] = $this->_getTablepkeyValue($virtuemart_order_id);
-        $response['virtuemart_order_id'] = $virtuemart_order_id;
-        $response[$this->_name . '_response_payment_date'] = gmdate('Y-m-d H:i:s', time());
-        $response[$this->_name . '_response_payment_status'] = $resp['status_code'];
-        $response[$this->_name . '_response_trans_id'] = $resp['transaction_id'];;
-        $this->storePSPluginInternalData($response, $this->_tablepkey, true);
-    }
-
-    function _getTablepkeyValue($virtuemart_order_id) {
-        $db = JFactory::getDBO();
-        $q = 'SELECT ' . $this->_tablepkey . ' FROM `' . $this->_tablename . '` ' . 'WHERE `virtuemart_order_id` = ' . $virtuemart_order_id;
-        $db->setQuery($q);
-
-        if (!($pkey = $db->loadResult())) {
-            JError::raiseWarning(500, $db->getErrorMsg());
-            return '';
-        }
-        return $pkey;
-    }
-
-    function emptyCart($session_id) {
-        if ($session_id != null) {
-            $session = JFactory::getSession();
-            $session->close();
-
-            // Recover session in wich the payment is done
-            session_id($session_id);
-            session_start();
-        }
-
-        $cart = VirtueMartCart::getCart();
-        $cart->emptyCart();
-        return true;
-    }
-
-    function managePaymentResponse($virtuemart_order_id, $resp, $new_status, $return_context = null) {
+    function managePaymentResponse($virtuemart_order_id, $resp, $new_status, $return_context = null)
+    {
         if (!class_exists('VirtueMartModelOrders')) {
             require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
         }
@@ -432,86 +295,317 @@ class plgVmPaymentKhipu extends vmPSPlugin {
         }
     }
 
-    function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
+    function emptyCart($session_id, $order_number = NULL)
+    {
+        if ($session_id != null) {
+            $session = JFactory::getSession();
+            $session->close();
+
+            // Recover session in wich the payment is done
+            session_id($session_id);
+            session_start();
+        }
+
+        $cart = VirtueMartCart::getCart();
+        $cart->emptyCart();
+        return true;
+    }
+
+    function plgVmOnUserPaymentCancel()
+    {
+
+        if (!class_exists('VirtueMartModelOrders')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+        }
+        $order_number = JRequest::getString('on');
+        if (!$order_number) {
+            return false;
+        }
+        if (!$virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number)) {
+            return null;
+        }
+        if (!($paymentTable = $this->getDataByOrderId($virtuemart_order_id))) {
+            return null;
+        }
+
+        $session = JFactory::getSession();
+        $return_context = $session->getId();
+        $field = $this->_name . '_custom';
+        if (strcmp($paymentTable->$field, $return_context) === 0) {
+            $this->handlePaymentUserCancel($virtuemart_order_id);
+        }
+        return true;
+    }
+
+    function plgVmOnPaymentNotification()
+    {
+
+        $virtuemart_paymentmethod_id = JRequest::getInt('pm', 0);
+
+        if (!($method = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
+            return null; // Another method was selected, do nothing
+        }
+
+        $this->_debug = $method->debug; // enable debug
+        $this->logInfo('plgVmOnPaymentNotification -- notification from merchant', 'message');
+
+        $resp = JRequest::get('request');
+
+        $api_version = $resp['api_version'];
+
+        if ($api_version != '1.3') {
+            print 'rejected - Wrong api version';
+            http_response_code(400);
+            return null;
+        }
+
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret($method->secret);
+        $configuration->setReceiverId($method->receiver_id);
+        $configuration->setPlatform('virtuemart-khipu', '3.2.0');
+
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
+
+        $paymentsResponse = $payments->paymentsGet($resp['notification_token']);
+        if ($paymentsResponse->getReceiverId() != $method->receiver_id) {
+            print 'rejected - Wrong receiver';
+            http_response_code(400);
+            return null;
+        }
+
+        // Retrieve order info from database
+        if (!class_exists('VirtueMartModelOrders')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'models' . DS . 'orders.php');
+        }
+        $order = VirtueMartModelOrders::getOrder($paymentsResponse->getTransactionId());
+
+        if (!$order) {
+            vmdebug('plgVmOnPaymentNotification ' . $this->_name, $resp, $resp['transaction_id']);
+            $this->logInfo('plgVmOnPaymentNotification -- payment merchant confirmation attempted on non existing order : ' . $resp['transaction_id'], 'error');
+            $html = $this->_getHtmlPaymentResponse('VMPAYMENT_' . $this->_name . '_ERROR_MSG', false);
+            print "ERROR2";
+            http_response_code(400);
+            return null;
+        }
+
+        if (!class_exists('CurrencyDisplay')) {
+            require(JPATH_VM_ADMINISTRATOR . DS . 'helpers' . DS . 'currencydisplay.php');
+        }
+        $currencyDisplay = CurrencyDisplay::getInstance($order['details']['BT']->order_currency);
+
+        if ($currencyDisplay->_vendorCurrency_code_3 != $paymentsResponse->getCurrency()) {
+            print 'rejected - Wrong currency';
+            http_response_code(400);
+            return null;
+        }
+
+        if ($currencyDisplay->roundForDisplay($order['details']['BT']->order_total) != $paymentsResponse->getAmount()) {
+            print 'rejected - Wrong amount';
+            http_response_code(400);
+            return null;
+        }
+
+        $modelOrder = VmModel::getModel('orders');
+        $order['order_status'] = "C";
+        $order['virtuemart_order_id'] = $paymentsResponse->getTransactionId();
+        $order['customer_notified'] = 1;
+        $order['comments'] = "Confirmation from khipu";
+        vmdebug($this->_name . ' - PaymentNotification', $order);
+
+        $modelOrder->updateStatusForOneOrder($paymentsResponse->getTransactionId(), $order, true);
+        print "OK";
+        die();
+    }
+
+    function savePaymentData($virtuemart_order_id, $resp)
+    {
+        vmdebug($this->_name . 'response_raw', json_encode($resp));
+        $response[$this->_tablepkey] = $this->_getTablepkeyValue($virtuemart_order_id);
+        $response['virtuemart_order_id'] = $virtuemart_order_id;
+        $response[$this->_name . '_response_payment_date'] = gmdate('Y-m-d H:i:s', time());
+        $response[$this->_name . '_response_payment_status'] = $resp['status_code'];
+        $response[$this->_name . '_response_trans_id'] = $resp['transaction_id'];;
+        $this->storePSPluginInternalData($response, $this->_tablepkey, true);
+    }
+
+    function _getTablepkeyValue($virtuemart_order_id)
+    {
+        $db = JFactory::getDBO();
+        $q = 'SELECT ' . $this->_tablepkey . ' FROM `' . $this->_tablename . '` ' . 'WHERE `virtuemart_order_id` = ' . $virtuemart_order_id;
+        $db->setQuery($q);
+
+        if (!($pkey = $db->loadResult())) {
+            JError::raiseWarning(500, $db->getErrorMsg());
+            return '';
+        }
+        return $pkey;
+    }
+
+    function plgVmOnStoreInstallPaymentPluginTable($jplugin_id)
+    {
         return $this->onStoreInstallPluginTable($jplugin_id);
     }
 
-    public function plgVmOnSelectCheckPayment(VirtueMartCart $cart) {
+    public function plgVmOnSelectCheckPayment(VirtueMartCart $cart)
+    {
         return $this->OnSelectCheck($cart);
     }
 
-    public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn) {
+    public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn)
+    {
         return $this->displayListFE($cart, $selected, $htmlIn);
     }
 
-    public function plgVmonSelectedCalculatePricePayment(VirtueMartCart $cart, array & $cart_prices, &$cart_prices_name) {
+    public function plgVmonSelectedCalculatePricePayment(VirtueMartCart $cart, array & $cart_prices, &$cart_prices_name)
+    {
         return $this->onSelectedCalculatePrice($cart, $cart_prices, $cart_prices_name);
     }
 
-    function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array(), &$paymentCounter) {
+    function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array(), &$paymentCounter)
+    {
         return $this->onCheckAutomaticSelected($cart, $cart_prices, $paymentCounter);
     }
 
-    public function plgVmOnShowOrderFEPayment($virtuemart_order_id, $virtuemart_paymentmethod_id, &$payment_name) {
+    public function plgVmOnShowOrderFEPayment($virtuemart_order_id, $virtuemart_paymentmethod_id, &$payment_name)
+    {
         $this->onShowOrderFE($virtuemart_order_id, $virtuemart_paymentmethod_id, $payment_name);
     }
 
-    function plgVmonShowOrderPrintPayment($order_number, $method_id) {
+    function plgVmonShowOrderPrintPayment($order_number, $method_id)
+    {
         return $this->onShowOrderPrint($order_number, $method_id);
     }
 
-    function plgVmDeclarePluginParamsPayment($name, $id, &$data) {
+    function plgVmDeclarePluginParamsPayment($name, $id, &$data)
+    {
         return $this->declarePluginParams('payment', $name, $id, $data);
     }
 
-    function plgVmSetOnTablePluginParamsPayment($name, $id, &$table) {
+    function plgVmSetOnTablePluginParamsPayment($name, $id, &$table)
+    {
         return $this->setOnTablePluginParams($name, $id, $table);
     }
 }
 
 if (!function_exists('http_response_code')) {
-    function http_response_code($code = NULL) {
+    function http_response_code($code = NULL)
+    {
 
         if ($code !== NULL) {
 
             switch ($code) {
-                case 100: $text = 'Continue'; break;
-                case 101: $text = 'Switching Protocols'; break;
-                case 200: $text = 'OK'; break;
-                case 201: $text = 'Created'; break;
-                case 202: $text = 'Accepted'; break;
-                case 203: $text = 'Non-Authoritative Information'; break;
-                case 204: $text = 'No Content'; break;
-                case 205: $text = 'Reset Content'; break;
-                case 206: $text = 'Partial Content'; break;
-                case 300: $text = 'Multiple Choices'; break;
-                case 301: $text = 'Moved Permanently'; break;
-                case 302: $text = 'Moved Temporarily'; break;
-                case 303: $text = 'See Other'; break;
-                case 304: $text = 'Not Modified'; break;
-                case 305: $text = 'Use Proxy'; break;
-                case 400: $text = 'Bad Request'; break;
-                case 401: $text = 'Unauthorized'; break;
-                case 402: $text = 'Payment Required'; break;
-                case 403: $text = 'Forbidden'; break;
-                case 404: $text = 'Not Found'; break;
-                case 405: $text = 'Method Not Allowed'; break;
-                case 406: $text = 'Not Acceptable'; break;
-                case 407: $text = 'Proxy Authentication Required'; break;
-                case 408: $text = 'Request Time-out'; break;
-                case 409: $text = 'Conflict'; break;
-                case 410: $text = 'Gone'; break;
-                case 411: $text = 'Length Required'; break;
-                case 412: $text = 'Precondition Failed'; break;
-                case 413: $text = 'Request Entity Too Large'; break;
-                case 414: $text = 'Request-URI Too Large'; break;
-                case 415: $text = 'Unsupported Media Type'; break;
-                case 500: $text = 'Internal Server Error'; break;
-                case 501: $text = 'Not Implemented'; break;
-                case 502: $text = 'Bad Gateway'; break;
-                case 503: $text = 'Service Unavailable'; break;
-                case 504: $text = 'Gateway Time-out'; break;
-                case 505: $text = 'HTTP Version not supported'; break;
+                case 100:
+                    $text = 'Continue';
+                    break;
+                case 101:
+                    $text = 'Switching Protocols';
+                    break;
+                case 200:
+                    $text = 'OK';
+                    break;
+                case 201:
+                    $text = 'Created';
+                    break;
+                case 202:
+                    $text = 'Accepted';
+                    break;
+                case 203:
+                    $text = 'Non-Authoritative Information';
+                    break;
+                case 204:
+                    $text = 'No Content';
+                    break;
+                case 205:
+                    $text = 'Reset Content';
+                    break;
+                case 206:
+                    $text = 'Partial Content';
+                    break;
+                case 300:
+                    $text = 'Multiple Choices';
+                    break;
+                case 301:
+                    $text = 'Moved Permanently';
+                    break;
+                case 302:
+                    $text = 'Moved Temporarily';
+                    break;
+                case 303:
+                    $text = 'See Other';
+                    break;
+                case 304:
+                    $text = 'Not Modified';
+                    break;
+                case 305:
+                    $text = 'Use Proxy';
+                    break;
+                case 400:
+                    $text = 'Bad Request';
+                    break;
+                case 401:
+                    $text = 'Unauthorized';
+                    break;
+                case 402:
+                    $text = 'Payment Required';
+                    break;
+                case 403:
+                    $text = 'Forbidden';
+                    break;
+                case 404:
+                    $text = 'Not Found';
+                    break;
+                case 405:
+                    $text = 'Method Not Allowed';
+                    break;
+                case 406:
+                    $text = 'Not Acceptable';
+                    break;
+                case 407:
+                    $text = 'Proxy Authentication Required';
+                    break;
+                case 408:
+                    $text = 'Request Time-out';
+                    break;
+                case 409:
+                    $text = 'Conflict';
+                    break;
+                case 410:
+                    $text = 'Gone';
+                    break;
+                case 411:
+                    $text = 'Length Required';
+                    break;
+                case 412:
+                    $text = 'Precondition Failed';
+                    break;
+                case 413:
+                    $text = 'Request Entity Too Large';
+                    break;
+                case 414:
+                    $text = 'Request-URI Too Large';
+                    break;
+                case 415:
+                    $text = 'Unsupported Media Type';
+                    break;
+                case 500:
+                    $text = 'Internal Server Error';
+                    break;
+                case 501:
+                    $text = 'Not Implemented';
+                    break;
+                case 502:
+                    $text = 'Bad Gateway';
+                    break;
+                case 503:
+                    $text = 'Service Unavailable';
+                    break;
+                case 504:
+                    $text = 'Gateway Time-out';
+                    break;
+                case 505:
+                    $text = 'HTTP Version not supported';
+                    break;
                 default:
                     exit('Unknown http status code "' . htmlentities($code) . '"');
                     break;
