@@ -197,7 +197,6 @@ class plgVmPaymentKhipu extends vmPSPlugin
         die(); // not save order, not send mail, do redirect
     }
 
-
     function plgVmOnPaymentResponseReceived(&$html)
     {
         // the payment itself should send the parameter needed.
