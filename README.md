@@ -28,7 +28,9 @@ código fuente o ayudarnos a mejorarla puedes usar el sistema de tickets y pull-
 
 Se incluye un script shell para empaquetar esta extensión y subirla a virtuemart. El script funciona sobre bash. Se debe ejecutar
 
-$ ./build.sh
+$ ./package.sh
+
+Luego de esto, se genera el archivo dist/khipu.zip.
 
 ## Licencia GPL
 
