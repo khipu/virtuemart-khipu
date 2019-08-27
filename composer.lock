@@ -1,23 +1,23 @@
 {
     "_readme": [
         "This file locks the dependencies of your project to a known state",
-        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
     "content-hash": "f81092061f974ec7afff284b8735422d",
     "packages": [
         {
             "name": "khipu/khipu-api-client",
-            "version": "2.7.1",
+            "version": "2.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/khipu/khipu-api-php-client.git",
-                "reference": "3a914dd36de4a07d1bdf25ff43b9028bbda61122"
+                "reference": "bef36baf4026884b45e5849a7875f6b5e9c462a5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/khipu/khipu-api-php-client/zipball/3a914dd36de4a07d1bdf25ff43b9028bbda61122",
-                "reference": "3a914dd36de4a07d1bdf25ff43b9028bbda61122",
+                "url": "https://api.github.com/repos/khipu/khipu-api-php-client/zipball/bef36baf4026884b45e5849a7875f6b5e9c462a5",
+                "reference": "bef36baf4026884b45e5849a7875f6b5e9c462a5",
                 "shasum": ""
             },
             "require": {
@@ -54,7 +54,7 @@
                 "php",
                 "sdk"
             ],
-            "time": "2016-07-11T18:53:07+00:00"
+            "time": "2019-05-27T14:21:10+00:00"
         }
     ],
     "packages-dev": [],
